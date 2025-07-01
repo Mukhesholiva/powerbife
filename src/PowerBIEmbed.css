@@ -1,0 +1,173 @@
+/* Root container */
+.powerbi-container {
+  display: flex;
+  height: 100vh;
+  background-color: #f5f5f5;
+  font-family: sans-serif;
+}
+
+/* Dark mode styles */
+.powerbi-container.dark {
+  background-color: #1e1e2f;
+  color: #fff;
+}
+
+.powerbi-container.dark .sidebar {
+  background-color: #2a2a3d;
+}
+
+.powerbi-container.dark .sidebar-btn {
+  color: #fff;
+}
+
+.powerbi-container.dark .report-title {
+  color: #fff;
+}
+
+/* Sidebar */
+.sidebar {
+  width: 220px;
+  background-color: #ffffff;
+  border-right: 1px solid #ddd;
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
+  transition: width 0.3s ease;
+  color: #141111;
+}
+
+.sidebar.collapsed {
+  width: 60px;
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.sidebar-title {
+  margin: 10px 0;
+  font-size: 16px;
+  font-weight: bold;
+  border-bottom: 1px solid #ccc;
+  padding-bottom: 5px;
+}
+
+.sidebar-footer {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Buttons in sidebar */
+.sidebar-btn {
+  background: #16b2ba;
+  border: 1px solid #ddd;
+  margin-bottom: 5px;
+  padding: 8px 12px;
+  border-radius: 4px;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: background 0.2s;
+  box-sizing: border-box;
+  color: #fff;
+  font-size: 16px;
+}
+
+.sidebar-btn:hover {
+  background-color: #139ca4;
+}
+
+.sidebar-btn.active {
+  background-color: #16b2ba;
+  border-color: #3399ff;
+}
+
+/* Icon inside button */
+.sidebar-btn i {
+  margin-right: 10px;
+}
+
+/* Username display */
+.username {
+  font-weight: bold;
+  margin-left: 10px;
+}
+
+/* Toggle (collapse) button */
+.toggle-btn {
+  background: transparent;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+  color: #fff;
+  margin-right: 10px;
+}
+
+/* Report area */
+.report-area {
+  flex-grow: 1;
+  padding: 20px;
+  background-color: #fff;
+  overflow-y: auto;
+}
+
+.report-title {
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 15px;
+  color: #333;
+}
+
+.report-frame {
+  width: 100%;
+  height: calc(100vh - 100px);
+  border: none;
+}
+
+/* Logout button */
+.logout-btn {
+  color: #fff;
+  background-color: #e74c3c;
+  border-color: #e74c3c;
+  padding: 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  border: none;
+}
+
+.logout-btn:hover {
+  background-color: #c0392b;
+}
+.sidebar-btn.active {
+  background-color: #0f8c92;
+  border-color: #0f8c92;
+  box-shadow: 0 0 10px rgba(15, 140, 146, 0.5);
+  font-weight: bold;
+  transform: scale(1.03);
+  transition: all 0.2s ease-in-out;
+}
+.sidebar {
+  width: 220px;
+  background-color: #ffffff;
+  border-right: 1px solid #ddd;
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
+  transition: all 0.3s ease-in-out;
+  overflow-x: hidden;
+  position: relative;
+  z-index: 2;
+}
+
+.sidebar.auto-hide {
+  width: 60px;
+}
+
+.sidebar.auto-hide:hover {
+  width: 220px;
+}
