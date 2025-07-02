@@ -4,6 +4,7 @@ import './PowerBIEmbed.css';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { saveAs } from 'file-saver';
+import * as powerbi from "powerbi-client";
 
 const PowerBIEmbed = ({ role, username }) => {
   const reportRef = useRef(null);
@@ -20,7 +21,7 @@ const PowerBIEmbed = ({ role, username }) => {
 
   const fetchReports = async () => {
     try {
-      const res = await fetch(`https://dev-oneoliva.olivaclinic.com/backend/get-reports?username=${username}`);
+      const res = await fetch(`http://localhost:9000/get-reports?username=${username}`);
       if (!res.ok) throw new Error('Failed to fetch report list');
       const data = await res.json();
       setReports(data);
@@ -33,7 +34,7 @@ const PowerBIEmbed = ({ role, username }) => {
 
   const fetchUserFilters = async (report) => {
     try {
-      const res = await fetch(`https://dev-oneoliva.olivaclinic.com/backend/get-user-filters/${username}/${report.report_id}`);
+      const res = await fetch(`http://localhost:9000/get-user-filters/${username}/${report.report_id}`);
       if (!res.ok) throw new Error('Failed to fetch user filters');
       const data = await res.json();
       return data.filters;
@@ -86,7 +87,7 @@ const PowerBIEmbed = ({ role, username }) => {
 
   const embedReport = async (report) => {
     try {
-      const res = await fetch('https://dev-oneoliva.olivaclinic.com/backend/get-powerbi-tokens', {
+      const res = await fetch('http://localhost:9000/get-powerbi-tokens', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -146,45 +147,21 @@ const PowerBIEmbed = ({ role, username }) => {
         embeddedReport.on('loaded', async () => {
           console.log('✅ Report loaded');
 
-          try {
-            // Get all pages
-            const pages = await embeddedReport.getPages();
-            console.log('Available page IDs:', pages.map(p => p.name));
-            
-            // Filter allowed pages based on role and report configuration
-            let allowedPages = pages;
-            if (role !== 'admin' && report.allowed_pages) {
-              allowedPages = pages.filter(p => report.allowed_pages.includes(p.name));
-              console.log('Filtered to allowed pages:', allowedPages.map(p => p.name));
-              
-              // For non-admin users, hide unauthorized pages
-              const unauthorizedPages = pages.filter(p => !report.allowed_pages.includes(p.name));
-              for (const page of unauthorizedPages) {
-                try {
-                  // Set visibility to hidden for unauthorized pages
-                  await page.setVisibility(1); // 1 = Hidden in View Mode
-                } catch (err) {
-                  console.error('Failed to hide page:', page.name, err);
-                }
-              }
-            }
+          // Get all pages
+          const pages = await embeddedReport.getPages();
+          // Log the fetched pages to confirm .name is the Power BI pageName
+          console.log('Fetched pages:', pages.map(p => ({ name: p.name, displayName: p.displayName })));
+          // Store the full page objects (with .name as Power BI pageName)
+          setReportPages(pages);
 
-            // Store pages for navigation
-            setReportPages(allowedPages);
-
-            // Navigate to first allowed page
-            if (allowedPages.length > 0) {
-              await handlePageChange(allowedPages[0]);
-            }
-
-            // Fetch and apply user-specific filters
-            const userFilters = await fetchUserFilters(report);
-            await applyUserFilters(embeddedReport, userFilters);
-
-          } catch (err) {
-            console.error('❌ Failed during report post-load handling:', err);
-            toast.error("❌ Could not finalize report setup");
+          // Navigate to first allowed page
+          if (pages.length > 0) {
+            await handlePageChange(pages[0]);
           }
+
+          // Fetch and apply user-specific filters
+          const userFilters = await fetchUserFilters(report);
+          await applyUserFilters(embeddedReport, userFilters);
         });
 
         embeddedReport.on('error', (event) => {
@@ -207,44 +184,57 @@ const PowerBIEmbed = ({ role, username }) => {
     }, 1000);
   };
 
-  const handleExport = async () => {
-    if (!activeReport) {
-      toast.error('No report selected');
-      return;
-    }
-    try {
-      const res = await fetch('https://dev-oneoliva.olivaclinic.com/backend/export-report', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username: username,
-          report_id: activeReport.report_id,
-          file_type: 'csv',
-        }),
-      });
-      if (!res.ok) throw new Error('Export failed');
-      const blob = await res.blob();
-      saveAs(blob, `report_${activeReport.report_id}.csv`);
-      toast.success('✅ Exported report!');
-    } catch (err) {
-      console.error('Export failed:', err);
-      toast.error('❌ Export failed');
-    }
-  };
-
   const fetchVisuals = async (page) => {
     if (!page) return;
     try {
       const visuals = await page.getVisuals();
-      setVisuals(visuals);
-      setSelectedVisual(visuals[0]?.name || null);
+      // Only show exportable visuals
+      const exportable = visuals.filter(v => ['table', 'matrix', 'tableEx', 'pivotTable'].includes(v.type));
+      setVisuals(exportable);
+      setSelectedVisual(exportable[0]?.name || null);
     } catch (err) {
       console.error('Failed to fetch visuals:', err);
       setVisuals([]);
       setSelectedVisual(null);
     }
   };
-
+  const handleExport = async () => {
+    if (!activeReport || !selectedPage || !selectedVisual) {
+      toast.error('Please select a report, page, and visual');
+      return;
+    }
+    // Log the selectedPage object to confirm .name is correct
+    console.log('selectedPage for export:', selectedPage);
+    const exportBody = {
+      username,
+      report_id: activeReport.report_id,
+      group_id: activeReport.group_id,
+      page_name: selectedPage.name, // This should be like 'ReportSection1'
+      visual_name: selectedVisual,
+      format: 'xlsx', // or 'csv'
+    };
+    console.log('Export request body:', exportBody);
+    try {
+      const res = await fetch('http://localhost:9000/export-visual', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(exportBody),
+      });
+      console.log('Export response status:', res.status);
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error('Export failed:', errorText);
+        throw new Error('Export failed: ' + errorText);
+      }
+      const blob = await res.blob();
+      saveAs(blob, `visual_${selectedVisual}.xlsx`);
+      toast.success('✅ Exported visual!');
+    } catch (err) {
+      console.error('Export failed:', err);
+      toast.error('❌ Export failed');
+    }
+  };
+    
   useEffect(() => {
     if (reportPages.length > 0 && activePage) {
       const pageObj = reportPages.find(p => p.name === activePage);
@@ -261,31 +251,65 @@ const PowerBIEmbed = ({ role, username }) => {
     }
   }, [activeReport]);
 
+  useEffect(() => {
+    fetchReports();
+  }, []);
+
   const handleExportVisual = async () => {
     if (!activeReport || !selectedPage || !selectedVisual) {
       toast.error('Select report, page, and visual');
       return;
     }
+    // Log the selectedPage object to confirm .name is correct
+    console.log('selectedPage for export:', selectedPage);
+    const exportBody = {
+      group_id: activeReport.group_id,
+      report_id: activeReport.report_id,
+      page_name: selectedPage.name, // This should be like 'ReportSection1'
+      visual_name: selectedVisual,
+      format: exportFormat,
+      username: username,
+    };
+    console.log('ExportVisual request body:', exportBody);
     try {
-      const res = await fetch('https://dev-oneoliva.olivaclinic.com/backend/export-visual', {
+      const res = await fetch('http://localhost:9000/export-visual', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          group_id: activeReport.group_id,
-          report_id: activeReport.report_id,
-          page_name: selectedPage.name,
-          visual_name: selectedVisual,
-          format: exportFormat,
-          username: username,
-        }),
+        body: JSON.stringify(exportBody),
       });
-      if (!res.ok) throw new Error('Export failed');
+      console.log('ExportVisual response status:', res.status);
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error('Export visual failed:', errorText);
+        throw new Error('Export visual failed: ' + errorText);
+      }
       const blob = await res.blob();
       saveAs(blob, `visual_export.${exportFormat}`);
       toast.success('✅ Visual exported!');
     } catch (err) {
       console.error('Export visual failed:', err);
       toast.error('❌ Export visual failed');
+    }
+  };
+
+  const logPagesAndVisuals = async (embeddedReport) => {
+    if (!embeddedReport) {
+      console.warn('Report object not ready');
+      return;
+    }
+    try {
+      const pages = await embeddedReport.getPages();
+      console.log('📄 Report Pages:');
+      for (const page of pages) {
+        console.log(`- Page Name: ${page.name}, Display Name: ${page.displayName}`);
+        const visuals = await page.getVisuals();
+        console.log(`  🔍 Visuals on ${page.displayName}:`);
+        visuals.forEach((visual) => {
+          console.log(`    - Visual Name: ${visual.name}, Type: ${visual.type}, Title: ${visual.title}`);
+        });
+      }
+    } catch (error) {
+      console.error('❌ Failed to get pages or visuals:', error);
     }
   };
 
@@ -373,12 +397,60 @@ const PowerBIEmbed = ({ role, username }) => {
               </select>
             </label>
             <label>Visual:
-              <select value={selectedVisual || ''} onChange={e => setSelectedVisual(e.target.value)}>
-                {visuals.map(v => (
-                  <option key={v.name} value={v.name}>{v.title || v.name}</option>
-                ))}
+              <select value={selectedVisual || ''} onChange={e => {
+                setSelectedVisual(e.target.value);
+                setTimeout(() => handleExportVisual(), 0);
+              }}>
+                {visuals
+                  .filter(v => ['table', 'matrix', 'tableEx', 'pivotTable'].includes(v.type))
+                  .map(v => (
+                    <option key={v.name} value={v.name}>{v.title || v.name}</option>
+                  ))}
               </select>
             </label>
+            <button
+              className="export-btn"
+              onClick={async () => {  
+                if (!selectedVisual || !selectedPage) {
+                  toast.error('Select a page and visual');
+                  return;
+                }
+                // Find the selected visual object
+                const pageObj = reportPages.find(p => p.name === selectedPage.name);
+                if (!pageObj) {
+                  toast.error('Page not found');
+                  return;
+                }
+                try {
+                  const visualsOnPage = await pageObj.getVisuals();
+                  const visualObj = visualsOnPage.find(v => v.name === selectedVisual);
+                  if (!visualObj) {
+                    toast.error('Visual not found');
+                    return;
+                  }
+                  // Only allow for table/matrix/summarizable
+                  if (!['table', 'matrix', 'tableEx', 'pivotTable'].includes(visualObj.type)) {
+                    toast.error('Only table/matrix visuals can be exported to CSV');
+                    return;
+                  }
+                  const result = await visualObj.exportData(powerbi.models.ExportDataType.Summarized, 100000);
+                  const blob = new Blob([result.data], { type: 'text/csv' });
+                  const link = document.createElement('a');
+                  link.href = URL.createObjectURL(blob);
+                  link.download = 'exported_data.csv';
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                  toast.success('✅ CSV exported!');
+                } catch (error) {
+                  console.error('Export failed:', error);
+                  toast.error('❌ Export failed');
+                }
+              }}
+              style={{marginLeft: 8}}
+            >
+              Export Visual to CSV (Frontend)
+            </button>
             <label>Format:
               <select value={exportFormat} onChange={e => setExportFormat(e.target.value)}>
                 <option value="xlsx">Excel (xlsx)</option>

@@ -17,7 +17,7 @@ function LoginPage({ setLoggedIn, setUsername, setRole }) {
     setSuccessMessage("");
 
     try {
-      const response = await axios.post("https://dev-oneoliva.olivaclinic.com/backend/login", {
+      const response = await axios.post("http://localhost:9000/login", {
         username: inputUsername,
         password,
       });
